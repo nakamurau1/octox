@@ -1,5 +1,27 @@
 #![no_std]
 #![no_main]
+#![feature(custom_test_frameworks)]
+#![test_runner(crate::test_runner)]
+#![reexport_test_harness_main = "test_main"]
+
+#[cfg(test)]
+pub fn test_runner(tests: &[&dyn Fn()]) {
+    println!("Running {} tests", tests.len());
+    for test in tests {
+        test();
+    }
+    qemu_exit();
+}
+
+#[cfg(test)]
+fn qemu_exit() -> ! {
+    use core::ptr;
+
+    unsafe {
+        ptr::write_volatile(0x100000 as *mut u32, 0x3333);
+    }
+    loop {}
+}
 
 extern crate alloc;
 
@@ -15,6 +37,9 @@ static STARTED: AtomicBool = AtomicBool::new(false);
 kmain!(main);
 
 extern "C" fn main() -> ! {
+    #[cfg(test)]
+    test_main();
+
     let cpuid = unsafe { Cpus::cpu_id() };
     if cpuid == 0 {
         let initcode = include_bytes!(concat!(env!("OUT_DIR"), "/bin/_initcode"));
